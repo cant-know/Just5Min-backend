@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.PointsLogMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO points_log (user_id, change_amount, balance, source, ref_id, remark)
+        VALUES (#{userId}, #{changeAmount}, #{balance}, #{source}, #{refId}, #{remark})
+    </insert>
+
+</mapper>

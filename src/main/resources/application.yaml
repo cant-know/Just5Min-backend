@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: Just5Min-backend
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/just5min?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}
+    # 本机开发库密码，可被环境变量 DB_PASSWORD 覆盖；换机器/上线请用环境变量或改这里
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.just5minbackend.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    # 开发期打印 SQL，上线请删除
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# 微信小程序配置：secret 务必通过环境变量注入，切勿提交到仓库
+wx:
+  app-id: ${WX_APPID:yourId}
+  secret: ${WX_SECRET:yourSecret}
+
+# 登录态 JWT 配置：生产环境 secret 必须替换为高熵随机串
+jwt:
+  secret: ${JWT_SECRET:just5min-dev-secret-please-change-me-0123456789abcdef}
+  expire-hours: ${JWT_EXPIRE_HOURS:168}
+
+logging:
+  level:
+    com.example.just5minbackend.mapper: debug
+
+# 开发调试开关
+# 为 true 时额外暴露 POST /api/auth/dev-login：浏览器/H5 没有 wx.login，用它换 token 才能联调。
+# ⚠️ 上线前务必置为 false（或设环境变量 DEV_LOGIN_ENABLED=false），否则任何人都能凭空换到 token。
+app:
+  dev-login:
+    enabled: ${DEV_LOGIN_ENABLED:true}

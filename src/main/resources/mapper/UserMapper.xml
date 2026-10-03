@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.UserMapper">
+
+    <sql id="columns">
+        id, openid, unionid, phone, password_hash, nickname, avatar_url, status, points, created_at, updated_at
+    </sql>
+
+    <select id="selectByOpenid" resultType="User">
+        SELECT <include refid="columns"/>
+        FROM `user`
+        WHERE openid = #{openid}
+        LIMIT 1
+    </select>
+
+    <select id="selectByPhone" resultType="User">
+        SELECT <include refid="columns"/>
+        FROM `user`
+        WHERE phone = #{phone}
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultType="User">
+        SELECT <include refid="columns"/>
+        FROM `user`
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `user` (openid, unionid, phone, password_hash, nickname, avatar_url, status)
+        VALUES (#{openid}, #{unionid}, #{phone}, #{passwordHash}, #{nickname}, #{avatarUrl}, 1)
+    </insert>
+
+    <!-- 加积分（答题结算）：原子自增 -->
+    <update id="addPoints">
+        UPDATE `user`
+        SET points = points + #{delta}
+        WHERE id = #{userId}
+    </update>
+
+    <!-- 条件扣积分：points >= amount 才扣，返回影响行数（0 = 积分不足） -->
+    <update id="deductPoints">
+        UPDATE `user`
+        SET points = points - #{amount}
+        WHERE id = #{userId} AND points &gt;= #{amount}
+    </update>
+
+</mapper>

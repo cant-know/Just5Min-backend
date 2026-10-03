@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.ExchangeRecordMapper">
+
+    <sql id="columns">
+        id, user_id, product_id, product_name, points_cost, status, created_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO exchange_record (user_id, product_id, product_name, points_cost, status)
+        VALUES (#{userId}, #{productId}, #{productName}, #{pointsCost}, 1)
+    </insert>
+
+    <select id="listByUser" resultType="ExchangeRecord">
+        SELECT <include refid="columns"/>
+        FROM exchange_record
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+</mapper>
