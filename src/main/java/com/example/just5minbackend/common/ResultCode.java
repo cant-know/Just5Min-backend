@@ -17,7 +17,8 @@ public enum ResultCode {
     PHONE_EXISTS(1001, "该手机号已注册，请直接登录"),
     LOGIN_FAILED(1002, "手机号或密码错误"),
     POINTS_NOT_ENOUGH(1003, "积分不足"),
-    STOCK_NOT_ENOUGH(1004, "库存不足");
+    STOCK_NOT_ENOUGH(1004, "库存不足"),
+    ALREADY_CHECKED_IN(1005, "今天已经打过卡啦，明天再来");
 
     private final int code;
     private final String message;

@@ -1,7 +1,7 @@
 -- ============================================================
 -- 考研刷题小程序 - 数据库初始化脚本
 -- 数据库: just5min   字符集: utf8mb4
--- 表: user / category / question / answer_record / wrong_question
+-- 表: user / category / question / answer_record / wrong_question / favorite / check_in
 --      mall_category / mall_product / exchange_record / points_log（积分商城）
 -- 分类: 三级结构（一级 → 二级分组/直挂叶子 → 三级叶子），靠 parent_id 自引用
 -- 题型: 目前为选择题(单选+多选)，question_type 已为判断/填空/简答预留
@@ -595,10 +595,39 @@ INSERT INTO `mall_product`
 (9,  4, '错题导出工具使用权',     '将错题本导出为 PDF',            200,  100, 1, 1, 1),
 (10, 4, '学习打卡皮肤',           '个性化打卡背景',                 30,  999, 1, 1, 2);
 
+-- ------------------------------------------------------------
+-- 10. favorite 收藏表（题目收藏，「我的收藏」）
+--     category_id 为冗余字段，用于按分类筛选（免 join question）
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `favorite`;
+CREATE TABLE `favorite` (
+    `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '收藏ID',
+    `user_id`     BIGINT UNSIGNED NOT NULL                COMMENT '用户ID',
+    `question_id` BIGINT UNSIGNED NOT NULL                COMMENT '题目ID',
+    `category_id` BIGINT UNSIGNED NOT NULL                COMMENT '分类ID（冗余，按分类筛选）',
+    `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_question` (`user_id`, `question_id`),
+    KEY `idx_user_cat` (`user_id`, `category_id`, `created_at`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '题目收藏表';
+
+-- ------------------------------------------------------------
+-- 11. check_in 每日打卡记录表（每用户每天最多一条，靠唯一键保证）
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `check_in`;
+CREATE TABLE `check_in` (
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '打卡记录ID',
+    `user_id`    BIGINT UNSIGNED NOT NULL                COMMENT '用户ID',
+    `check_date` DATE            NOT NULL                COMMENT '打卡日期（自然日）',
+    `created_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_date` (`user_id`, `check_date`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '每日打卡记录表';
+
 -- ============================================================
 -- 初始化完成
 -- 分类: 16 个（3 个一级 / 5 个二级分组或直挂 / 8 个叶子）
 -- 题目: 100 道（政治11 英语一11 英语二8 数学一11 数学二8 408:11 四级8 二级8 三级8 初级会计8 银行从业8）
 -- 商城: 4 个分类 / 10 个商品；user.points 初始 0
--- 用户、答题记录、错题本表初始为空，由小程序运行后产生。
+-- 用户、答题记录、错题本、收藏、打卡表初始为空，由小程序运行后产生。
 -- ============================================================

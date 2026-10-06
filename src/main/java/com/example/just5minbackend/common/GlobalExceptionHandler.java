@@ -46,7 +46,8 @@ public class GlobalExceptionHandler {
     private HttpStatus httpStatus(ResultCode resultCode) {
         return switch (resultCode) {
             case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
-            case PARAM_ERROR, PHONE_EXISTS, LOGIN_FAILED, POINTS_NOT_ENOUGH, STOCK_NOT_ENOUGH -> HttpStatus.BAD_REQUEST;
+            case PARAM_ERROR, PHONE_EXISTS, LOGIN_FAILED, POINTS_NOT_ENOUGH, STOCK_NOT_ENOUGH, ALREADY_CHECKED_IN ->
+                    HttpStatus.BAD_REQUEST;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };

@@ -20,4 +20,6 @@ public class QuestionVO {
     private String answer;
     private String analysis;
     private Integer difficulty;
+    /** 当前用户是否已收藏；游客（未登录）为 null */
+    private Boolean favorited;
 }
