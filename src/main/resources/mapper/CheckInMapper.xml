@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.CheckInMapper">
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO check_in (user_id, check_date)
+        VALUES (#{userId}, #{checkDate})
+    </insert>
+
+    <select id="listDatesByUser" resultType="java.time.LocalDate">
+        SELECT check_date
+        FROM check_in
+        WHERE user_id = #{userId}
+        ORDER BY check_date ASC
+    </select>
+
+    <select id="countByUserBetween" resultType="int">
+        SELECT COUNT(*)
+        FROM check_in
+        WHERE user_id = #{userId}
+          AND check_date BETWEEN #{start} AND #{end}
+    </select>
+
+    <select id="listByUserBetween" resultType="com.example.just5minbackend.entity.CheckIn">
+        SELECT id, user_id, check_date, created_at
+        FROM check_in
+        WHERE user_id = #{userId}
+          AND check_date BETWEEN #{start} AND #{end}
+        ORDER BY check_date ASC
+    </select>
+
+    <!-- 批量：好友列表一次拿到所有人的累计打卡天数。无记录的用户不会出现在结果里，Service 层需补 0 -->
+    <select id="countByUsers" resultType="com.example.just5minbackend.vo.UserCheckInStatVO">
+        SELECT user_id  AS userId,
+               COUNT(*) AS days
+        FROM check_in
+        WHERE user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+        GROUP BY user_id
+    </select>
+
+</mapper>

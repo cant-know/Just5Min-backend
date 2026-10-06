@@ -110,6 +110,8 @@ public class AuthServiceImpl implements AuthService {
         vo.setUserId(user.getId());
         vo.setNickname(user.getNickname());
         vo.setPhone(user.getPhone());
+        // selectByOpenid / selectByPhone 用的是含 avatar_url 的 authColumns，这里可安全回传
+        vo.setAvatarUrl(user.getAvatarUrl());
         return vo;
     }
 

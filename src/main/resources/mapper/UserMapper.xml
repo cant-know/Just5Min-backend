@@ -2,34 +2,88 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.just5minbackend.mapper.UserMapper">
 
-    <sql id="columns">
-        id, openid, unionid, phone, password_hash, nickname, avatar_url, status, points, created_at, updated_at
+    <!--
+      列拆分说明（重要）：
+      avatar_url 现为 MEDIUMTEXT 且存 Base64 DataURL（约 5~10KB），绝不能出现在高频路径里。
+      - baseColumns  ：不含头像。selectById 使用（答题提交 / 兑换 / 打卡 / 统计都是热路径，只读 points）
+      - authColumns  ：含头像。登录查询与「我的资料」使用（低频，且登录后前端要缓存头像）
+      - briefColumns ：列表展示用最小字段集合（好友列表 / 用户搜索）
+    -->
+    <sql id="baseColumns">
+        id, openid, unionid, phone, password_hash, nickname, status, points, created_at, updated_at
+    </sql>
+
+    <sql id="authColumns">
+        <include refid="baseColumns"/>, avatar_url
+    </sql>
+
+    <sql id="briefColumns">
+        id, nickname, avatar_url, status, points
     </sql>
 
     <select id="selectByOpenid" resultType="User">
-        SELECT <include refid="columns"/>
+        SELECT <include refid="authColumns"/>
         FROM `user`
         WHERE openid = #{openid}
         LIMIT 1
     </select>
 
     <select id="selectByPhone" resultType="User">
-        SELECT <include refid="columns"/>
+        SELECT <include refid="authColumns"/>
         FROM `user`
         WHERE phone = #{phone}
         LIMIT 1
     </select>
 
     <select id="selectById" resultType="User">
-        SELECT <include refid="columns"/>
+        SELECT <include refid="baseColumns"/>
         FROM `user`
         WHERE id = #{id}
+    </select>
+
+    <!-- 「我的」资料页：单条，含头像 -->
+    <select id="selectProfileById" resultType="User">
+        SELECT <include refid="authColumns"/>
+        FROM `user`
+        WHERE id = #{id}
+    </select>
+
+    <!-- 好友列表 / 用户搜索：批量最小字段（含头像，用于头像展示） -->
+    <select id="selectBriefByIds" resultType="User">
+        SELECT <include refid="briefColumns"/>
+        FROM `user`
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 昵称模糊搜索：ESCAPE '!' 配合 Service 层的 !/%/_ 转义，避免 % 被当通配符 -->
+    <select id="searchByNicknameLike" resultType="User">
+        SELECT <include refid="briefColumns"/>
+        FROM `user`
+        WHERE status = 1
+          AND nickname IS NOT NULL
+          AND nickname LIKE CONCAT('%', #{keyword}, '%') ESCAPE '!'
+        ORDER BY id ASC
+        LIMIT #{limit}
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `user` (openid, unionid, phone, password_hash, nickname, avatar_url, status)
         VALUES (#{openid}, #{unionid}, #{phone}, #{passwordHash}, #{nickname}, #{avatarUrl}, 1)
     </insert>
+
+    <!-- 编辑资料：动态 SET，只更新传入的非 null 字段（支持只改昵称或只改头像）
+         注意：调用方必须保证至少一个字段非 null，否则 SET 为空会生成非法 SQL -->
+    <update id="updateProfile">
+        UPDATE `user`
+        <set>
+            <if test="nickname != null">nickname = #{nickname},</if>
+            <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
+        </set>
+        WHERE id = #{userId}
+    </update>
 
     <!-- 加积分（答题结算）：原子自增 -->
     <update id="addPoints">

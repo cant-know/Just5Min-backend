@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.FriendRequestMapper">
+
+    <select id="selectByFromTo" resultType="FriendRequest">
+        SELECT id, from_user_id, to_user_id, status, message, created_at, updated_at
+        FROM friend_request
+        WHERE from_user_id = #{fromUserId}
+          AND to_user_id = #{toUserId}
+    </select>
+
+    <select id="selectById" resultType="FriendRequest">
+        SELECT id, from_user_id, to_user_id, status, message, created_at, updated_at
+        FROM friend_request
+        WHERE id = #{id}
+    </select>
+
+    <!--
+      uk_from_to 冲突时的语义：
+        status = 2（已拒绝）→ 复位为 0，允许重新申请
+        status = 0/1        → 保持不变（已是待处理 / 已是好友，由 Service 层提前拦截）
+    -->
+    <insert id="upsertRequest">
+        INSERT INTO friend_request (from_user_id, to_user_id, status, message)
+        VALUES (#{fromUserId}, #{toUserId}, 0, #{message})
+        ON DUPLICATE KEY UPDATE
+            status     = IF(status = 2, 0, status),
+            message    = #{message},
+            updated_at = NOW()
+    </insert>
+
+    <!--
+      条件更新：id + 收件人 + 待处理 三重约束。
+      既防越权（A 不能替 B 处理），也做并发幂等（同时点两次只有一次生效）。
+    -->
+    <update id="markHandled">
+        UPDATE friend_request
+        SET status = #{status}, updated_at = NOW()
+        WHERE id = #{id}
+          AND to_user_id = #{toUserId}
+          AND status = 0
+    </update>
+
+    <select id="listIncoming" resultType="com.example.just5minbackend.vo.FriendRequestVO">
+        SELECT fr.id            AS id,
+               fr.from_user_id  AS fromUserId,
+               fr.message       AS message,
+               fr.created_at    AS createdAt,
+               u.nickname       AS nickname,
+               u.avatar_url     AS avatarUrl
+        FROM friend_request fr
+                 JOIN `user` u ON u.id = fr.from_user_id
+        WHERE fr.to_user_id = #{toUserId}
+          AND fr.status = 0
+        ORDER BY fr.created_at DESC, fr.id DESC
+    </select>
+
+    <select id="countPending" resultType="int">
+        SELECT COUNT(*)
+        FROM friend_request
+        WHERE to_user_id = #{toUserId}
+          AND status = 0
+    </select>
+
+    <select id="listPendingInIds" resultType="long">
+        SELECT from_user_id
+        FROM friend_request
+        WHERE to_user_id = #{toUserId}
+          AND status = 0
+          AND from_user_id IN
+        <foreach collection="ids" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </select>
+
+    <select id="listPendingOutIds" resultType="long">
+        SELECT to_user_id
+        FROM friend_request
+        WHERE from_user_id = #{fromUserId}
+          AND status = 0
+          AND to_user_id IN
+        <foreach collection="ids" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+    </select>
+
+</mapper>

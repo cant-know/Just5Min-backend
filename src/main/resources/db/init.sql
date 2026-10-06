@@ -3,6 +3,7 @@
 -- 数据库: just5min   字符集: utf8mb4
 -- 表: user / category / question / answer_record / wrong_question / favorite / check_in
 --      mall_category / mall_product / exchange_record / points_log（积分商城）
+--      friend / friend_request（好友关系与请求）
 -- 分类: 三级结构（一级 → 二级分组/直挂叶子 → 三级叶子），靠 parent_id 自引用
 -- 题型: 目前为选择题(单选+多选)，question_type 已为判断/填空/简答预留
 -- 执行: mysql -uroot -p < init.sql
@@ -29,7 +30,7 @@ CREATE TABLE `user` (
     `phone`         VARCHAR(20)     DEFAULT NULL            COMMENT '手机号（手机号注册用户才有）',
     `password_hash` VARCHAR(255)    DEFAULT NULL            COMMENT '密码哈希PBKDF2（微信登录用户为空）',
     `nickname`      VARCHAR(64)     DEFAULT NULL            COMMENT '昵称（微信静默登录时为空）',
-    `avatar_url`    VARCHAR(512)    DEFAULT NULL            COMMENT '头像URL（预留）',
+    `avatar_url`    MEDIUMTEXT      DEFAULT NULL            COMMENT '头像（Base64 DataURL，如 data:image/jpeg;base64,...）',
     `status`        TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1正常 0禁用',
     `points`        INT             NOT NULL DEFAULT 0      COMMENT '积分余额（每提交一次答案+1，兑换商品扣减）',
     `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
@@ -624,10 +625,45 @@ CREATE TABLE `check_in` (
     UNIQUE KEY `uk_user_date` (`user_id`, `check_date`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '每日打卡记录表';
 
+-- ------------------------------------------------------------
+-- 12. friend 好友关系表（双向各存一行：A-B 成为好友时写 (A,B) 与 (B,A)）
+--     uk_user_friend 保证不重复；重复添加走 INSERT IGNORE
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `friend`;
+CREATE TABLE `friend` (
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '关系ID',
+    `user_id`    BIGINT UNSIGNED NOT NULL                COMMENT '关系拥有者用户ID',
+    `friend_id`  BIGINT UNSIGNED NOT NULL                COMMENT '对方用户ID',
+    `created_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '成为好友时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_friend` (`user_id`, `friend_id`),
+    KEY `idx_friend` (`friend_id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友关系表（双向各存一行）';
+
+-- ------------------------------------------------------------
+-- 13. friend_request 好友请求表
+--     status: 0待处理 1已同意 2已拒绝
+--     uk_from_to：同一方向只保留一条，被拒绝后复用同一行（发送时 upsert 复位 status=0）
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `friend_request`;
+CREATE TABLE `friend_request` (
+    `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '请求ID',
+    `from_user_id` BIGINT UNSIGNED NOT NULL                COMMENT '发起人用户ID',
+    `to_user_id`   BIGINT UNSIGNED NOT NULL                COMMENT '接收人用户ID',
+    `status`       TINYINT         NOT NULL DEFAULT 0      COMMENT '状态：0待处理 1已同意 2已拒绝',
+    `message`      VARCHAR(64)     DEFAULT NULL            COMMENT '验证附言（可选）',
+    `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发起时间',
+    `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_from_to` (`from_user_id`, `to_user_id`),
+    KEY `idx_to_status` (`to_user_id`, `status`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友请求表';
+
 -- ============================================================
 -- 初始化完成
 -- 分类: 16 个（3 个一级 / 5 个二级分组或直挂 / 8 个叶子）
 -- 题目: 100 道（政治11 英语一11 英语二8 数学一11 数学二8 408:11 四级8 二级8 三级8 初级会计8 银行从业8）
 -- 商城: 4 个分类 / 10 个商品；user.points 初始 0
+-- 好友: friend / friend_request 两表初始为空
 -- 用户、答题记录、错题本、收藏、打卡表初始为空，由小程序运行后产生。
 -- ============================================================

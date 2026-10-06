@@ -43,10 +43,17 @@ public class GlobalExceptionHandler {
                 .body(Result.error(ResultCode.BIZ_ERROR, "服务器开小差了，请稍后再试"));
     }
 
+    /**
+     * 业务码 → HTTP 状态映射。
+     * ⚠️ 新增 ResultCode 时必须同步这里，否则会落到 default → 500（前端只对 401 特判，
+     * 其余统一弹 message，会出现「提示文案对了但状态码是 500」的怪现象）。
+     */
     private HttpStatus httpStatus(ResultCode resultCode) {
         return switch (resultCode) {
             case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
-            case PARAM_ERROR, PHONE_EXISTS, LOGIN_FAILED, POINTS_NOT_ENOUGH, STOCK_NOT_ENOUGH, ALREADY_CHECKED_IN ->
+            case PARAM_ERROR, PHONE_EXISTS, LOGIN_FAILED, POINTS_NOT_ENOUGH, STOCK_NOT_ENOUGH,
+                 ALREADY_CHECKED_IN, CANNOT_ADD_SELF, ALREADY_FRIENDS, FRIEND_REQUEST_HANDLED,
+                 FRIEND_REQUEST_SENT, AVATAR_TOO_LARGE ->
                     HttpStatus.BAD_REQUEST;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;

@@ -14,4 +14,7 @@ public class LoginVO {
 
     /** 手机号注册/密码登录时返回，微信登录用户为 null */
     private String phone;
+
+    /** 头像（Base64 DataURL），未设置时为 null */
+    private String avatarUrl;
 }

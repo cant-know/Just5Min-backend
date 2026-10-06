@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.FriendMapper">
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO friend (user_id, friend_id)
+        VALUES (#{userId}, #{friendId})
+    </insert>
+
+    <delete id="deleteRelation">
+        DELETE FROM friend
+        WHERE user_id = #{userId}
+          AND friend_id = #{friendId}
+    </delete>
+
+    <select id="exists" resultType="int">
+        SELECT COUNT(*)
+        FROM friend
+        WHERE user_id = #{userId}
+          AND friend_id = #{friendId}
+    </select>
+
+    <select id="listFriends" resultType="Friend">
+        SELECT id, user_id, friend_id, created_at
+        FROM friend
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countFriends" resultType="long">
+        SELECT COUNT(*)
+        FROM friend
+        WHERE user_id = #{userId}
+    </select>
+
+    <select id="listFriendIdsAmong" resultType="long">
+        SELECT friend_id
+        FROM friend
+        WHERE user_id = #{userId}
+          AND friend_id IN
+        <foreach collection="ids" item="fid" open="(" separator="," close=")">
+            #{fid}
+        </foreach>
+    </select>
+
+</mapper>

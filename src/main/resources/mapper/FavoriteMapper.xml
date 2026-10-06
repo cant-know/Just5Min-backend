@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.FavoriteMapper">
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO favorite (user_id, question_id, category_id)
+        VALUES (#{userId}, #{questionId}, #{categoryId})
+    </insert>
+
+    <select id="listByUser" resultType="Favorite">
+        SELECT id, user_id, question_id, category_id, created_at
+        FROM favorite
+        WHERE user_id = #{userId}
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+    <delete id="deleteByUserAndQuestion">
+        DELETE FROM favorite
+        WHERE user_id = #{userId}
+          AND question_id = #{questionId}
+    </delete>
+
+    <select id="listQuestionIds" resultType="long">
+        SELECT question_id
+        FROM favorite
+        WHERE user_id = #{userId}
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+    </select>
+
+    <select id="listFavoritedIds" resultType="long">
+        SELECT question_id
+        FROM favorite
+        WHERE user_id = #{userId}
+          AND question_id IN
+        <foreach collection="questionIds" item="qid" open="(" separator="," close=")">
+            #{qid}
+        </foreach>
+    </select>
+
+    <select id="countByUser" resultType="long">
+        SELECT COUNT(*)
+        FROM favorite
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>

@@ -32,4 +32,17 @@
         ORDER BY c.parent_id ASC, c.sort ASC, c.id ASC
     </select>
 
+    <!-- 批量：好友列表一次拿到所有人的答题数/答对数。无记录的用户不会出现在结果里，Service 层需补 0 -->
+    <select id="statsByUsers" resultType="com.example.just5minbackend.vo.UserAnswerStatVO">
+        SELECT user_id                                   AS userId,
+               COUNT(*)                                  AS totalAnswered,
+               COUNT(CASE WHEN is_correct = 1 THEN 1 END) AS totalCorrect
+        FROM answer_record
+        WHERE user_id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+        GROUP BY user_id
+    </select>
+
 </mapper>
