@@ -18,7 +18,10 @@ public class MallProduct {
     /** 封面图URL（预留） */
     private String coverUrl;
 
-    /** 兑换所需积分 */
+    /** 关联文章ID（虚拟资料商品用；实物为空） */
+    private Long articleId;
+
+    /** 解锁所需积分 */
     private Integer price;
 
     /** 库存（虚拟商品同样占库存） */

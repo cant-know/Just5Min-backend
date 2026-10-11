@@ -2,8 +2,9 @@
 -- 考研刷题小程序 - 数据库初始化脚本
 -- 数据库: just5min   字符集: utf8mb4
 -- 表: user / category / question / answer_record / wrong_question / favorite / check_in
---      mall_category / mall_product / exchange_record / points_log（积分商城）
+--      article / mall_category / mall_product / exchange_record / points_log（学习资料）
 --      friend / friend_request（好友关系与请求）
+--      message（好友私信聊天）
 -- 分类: 三级结构（一级 → 二级分组/直挂叶子 → 三级叶子），靠 parent_id 自引用
 -- 题型: 目前为选择题(单选+多选)，question_type 已为判断/填空/简答预留
 -- 执行: mysql -uroot -p < init.sql
@@ -21,6 +22,8 @@ USE `just5min`;
 --    微信登录：openid 有值、phone/password_hash 为空
 --    手机号注册：phone/password_hash 有值、openid 为空
 --    两条唯一键均允许 NULL（MySQL 唯一索引对 NULL 不生效），互不冲突
+--    资料字段（编辑资料页）：signature/gender/birthday/region +
+--    target_school/target_major/exam_year，全部可空（老用户不填也能用）
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
@@ -31,6 +34,13 @@ CREATE TABLE `user` (
     `password_hash` VARCHAR(255)    DEFAULT NULL            COMMENT '密码哈希PBKDF2（微信登录用户为空）',
     `nickname`      VARCHAR(64)     DEFAULT NULL            COMMENT '昵称（微信静默登录时为空）',
     `avatar_url`    MEDIUMTEXT      DEFAULT NULL            COMMENT '头像（Base64 DataURL，如 data:image/jpeg;base64,...）',
+    `signature`     VARCHAR(64)     DEFAULT NULL            COMMENT '个性签名',
+    `gender`        TINYINT         NOT NULL DEFAULT 0      COMMENT '性别：0未知 1男 2女',
+    `birthday`      DATE            DEFAULT NULL            COMMENT '生日（可空）',
+    `region`        VARCHAR(32)     DEFAULT NULL            COMMENT '所在地区',
+    `target_school` VARCHAR(64)     DEFAULT NULL            COMMENT '目标院校',
+    `target_major`  VARCHAR(64)     DEFAULT NULL            COMMENT '报考专业',
+    `exam_year`     SMALLINT        DEFAULT NULL            COMMENT '考研年份（如 2027）',
     `status`        TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1正常 0禁用',
     `points`        INT             NOT NULL DEFAULT 0      COMMENT '积分余额（每提交一次答案+1，兑换商品扣减）',
     `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
@@ -499,16 +509,38 @@ INSERT INTO `question` (`category_id`, `question_type`, `content`, `options`, `a
  'ABC', '商业银行业务分为负债、资产、中间三大类；货币发行是中央银行的独占职能。', 3);
 
 -- ============================================================
--- 商城（积分兑换电子商品；仅一级分类）
+-- 学习资料（原积分商城改造：虚拟资料商品 → 关联文章，兑换即解锁阅读）
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 6. mall_category 商城分类表（仅一级，不做多级）
+-- 6. article 学习资料文章表
+--    content 用 MEDIUMTEXT（单篇长文可到 MB 级）；summary 供列表页快速展示
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `article`;
+CREATE TABLE `article` (
+    `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '文章ID',
+    `category_id` BIGINT UNSIGNED NOT NULL                COMMENT '所属资料分类ID（对应 mall_category.id）',
+    `title`       VARCHAR(128)    NOT NULL                COMMENT '标题',
+    `summary`     VARCHAR(512)    DEFAULT NULL            COMMENT '摘要（列表页展示）',
+    `content`     MEDIUMTEXT      DEFAULT NULL            COMMENT '正文（Markdown/纯文本）',
+    `tags`        VARCHAR(255)    DEFAULT NULL            COMMENT '标签，逗号分隔',
+    `cover_url`   VARCHAR(512)    DEFAULT NULL            COMMENT '封面图URL（预留）',
+    `read_count`  INT             NOT NULL DEFAULT 0      COMMENT '阅读量',
+    `status`      TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1发布 0下架',
+    `sort`        INT             NOT NULL DEFAULT 0      COMMENT '排序值，越小越靠前',
+    `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_cat_status` (`category_id`, `status`, `sort`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '学习资料文章表';
+
+-- ------------------------------------------------------------
+-- 7. mall_category 资料分类表（仅一级，不做多级）
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `mall_category`;
 CREATE TABLE `mall_category` (
-    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商城分类ID',
-    `name`       VARCHAR(64)     NOT NULL                COMMENT '分类名称，如：会员特权/备考资料',
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '资料分类ID',
+    `name`       VARCHAR(64)     NOT NULL                COMMENT '分类名称，如：政治资料/英语资料',
     `icon`       VARCHAR(512)    DEFAULT NULL            COMMENT '图标URL（预留）',
     `sort`       INT             NOT NULL DEFAULT 0      COMMENT '排序值，越小越靠前',
     `status`     TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1启用 0停用',
@@ -516,32 +548,33 @@ CREATE TABLE `mall_category` (
     `updated_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     KEY `idx_sort` (`sort`, `id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '商城分类表';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '资料分类表';
 
 -- ------------------------------------------------------------
--- 7. mall_product 商品表（MVP 均为虚拟电子商品）
---    price 为兑换所需积分；库存对虚拟商品同样生效，防超兑
+-- 8. mall_product 资料商品表
+--    article_id 关联文章（虚拟资料商品用）；price 为解锁所需积分
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `mall_product`;
 CREATE TABLE `mall_product` (
     `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商品ID',
-    `category_id`  BIGINT UNSIGNED NOT NULL                COMMENT '商城分类ID',
-    `name`         VARCHAR(128)    NOT NULL                COMMENT '商品名称',
+    `category_id`  BIGINT UNSIGNED NOT NULL                COMMENT '资料分类ID',
+    `name`         VARCHAR(128)    NOT NULL                COMMENT '商品名称（与文章标题一致）',
     `description`  VARCHAR(512)    DEFAULT NULL            COMMENT '商品简介',
     `cover_url`    VARCHAR(512)    DEFAULT NULL            COMMENT '封面图URL（预留）',
-    `price`        INT             NOT NULL                COMMENT '兑换所需积分',
-    `stock`        INT             NOT NULL DEFAULT 0      COMMENT '库存（虚拟商品同样占库存）',
-    `product_type` TINYINT         NOT NULL DEFAULT 1      COMMENT '类型：1虚拟电子商品（预留2实物）',
+    `article_id`   BIGINT UNSIGNED DEFAULT NULL            COMMENT '关联文章ID（虚拟资料商品用；实物为空）',
+    `price`        INT             NOT NULL                COMMENT '解锁所需积分',
+    `stock`        INT             NOT NULL DEFAULT 0      COMMENT '库存（虚拟资料同样占库存）',
+    `product_type` TINYINT         NOT NULL DEFAULT 1      COMMENT '类型：1虚拟电子资料（预留2实物）',
     `status`       TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1上架 0下架',
     `sort`         INT             NOT NULL DEFAULT 0      COMMENT '排序值，越小越靠前',
     `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     KEY `idx_cat_status` (`category_id`, `status`, `sort`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '商品表';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '资料商品表';
 
 -- ------------------------------------------------------------
--- 8. exchange_record 兑换记录表
+-- 9. exchange_record 兑换记录表
 --    product_name / points_cost 为兑换时刻快照
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `exchange_record`;
@@ -558,8 +591,8 @@ CREATE TABLE `exchange_record` (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '兑换记录表';
 
 -- ------------------------------------------------------------
--- 9. points_log 积分流水表
---    source: 1答题 2兑换；change_amount 正为获取、负为消耗
+-- 10. points_log 积分流水表
+--    source: 1答题 2兑换 3打卡；change_amount 正为获取、负为消耗
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `points_log`;
 CREATE TABLE `points_log` (
@@ -567,7 +600,7 @@ CREATE TABLE `points_log` (
     `user_id`       BIGINT UNSIGNED NOT NULL                COMMENT '用户ID',
     `change_amount` INT             NOT NULL                COMMENT '变动值，正获取负消耗',
     `balance`       INT             NOT NULL                COMMENT '变动后余额快照',
-    `source`        TINYINT         NOT NULL                COMMENT '来源：1答题 2兑换',
+    `source`        TINYINT         NOT NULL                COMMENT '来源：1答题 2兑换 3打卡',
     `ref_id`        BIGINT UNSIGNED DEFAULT NULL            COMMENT '关联业务ID（答题记录ID/兑换记录ID）',
     `remark`        VARCHAR(255)    DEFAULT NULL            COMMENT '备注',
     `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发生时间',
@@ -575,26 +608,31 @@ CREATE TABLE `points_log` (
     KEY `idx_user_time` (`user_id`, `created_at`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '积分流水表';
 
--- 商城分类（4 个一级，id 固定）
+-- 资料分类（4 个一级，id 固定）
 INSERT INTO `mall_category` (`id`, `name`, `sort`, `status`) VALUES
-(1, '会员特权', 1, 1),
-(2, '备考资料', 2, 1),
-(3, '视频课程', 3, 1),
-(4, '学习工具', 4, 1);
+(1, '政治资料', 1, 1),
+(2, '英语资料', 2, 1),
+(3, '数学资料', 3, 1),
+(4, '专业课资料', 4, 1);
 
--- 商品（10 个示例电子商品）
+-- 资料商品（10 篇学习资料，按科目分档定价：政治/英语 50、数学 60、专业课 80 积分；
+--          兑换成功后前端跳对应文章详情；文章本身在「文章专栏」里仍免费可读）
 INSERT INTO `mall_product`
-(`id`, `category_id`, `name`, `description`, `price`, `stock`, `product_type`, `status`, `sort`) VALUES
-(1,  1, '会员 3 天',              '解锁全部题库与解析 3 天',        50,  999, 1, 1, 1),
-(2,  1, '会员 7 天',              '解锁全部题库与解析 7 天',       120,  999, 1, 1, 2),
-(3,  1, '会员 30 天',             '解锁全部题库与解析 30 天',      400,  200, 1, 1, 3),
-(4,  2, '考研政治冲刺必背 100 题', 'PDF 电子版，随时查看',           80,  500, 1, 1, 1),
-(5,  2, '考研英语高频词汇手册',   'PDF 电子版，含例句',             60,  500, 1, 1, 2),
-(6,  2, '数学公式速查卡',         'PDF 电子版，考前速览',           40,  500, 1, 1, 3),
-(7,  3, '英语写作模板课',         '录播课 3 讲',                   300,  100, 1, 1, 1),
-(8,  3, '408 数据结构精讲',       '录播课 8 讲',                   600,   50, 1, 1, 2),
-(9,  4, '错题导出工具使用权',     '将错题本导出为 PDF',            200,  100, 1, 1, 1),
-(10, 4, '学习打卡皮肤',           '个性化打卡背景',                 30,  999, 1, 1, 2);
+(`id`, `category_id`, `name`, `description`, `price`, `stock`, `product_type`, `status`, `sort`, `article_id`) VALUES
+(1,  1, '考研政治冲刺必背 100 题（上）',   '马原 + 毛中特高频考点精选',      50, 999, 1, 1, 1, 1),
+(2,  2, '考研英语高频词汇手册（核心 500 词）', '按真题词频排序，含熟词僻义',     50, 999, 1, 1, 1, 2),
+(3,  3, '考研数学公式速查卡',               '高数 / 线代 / 概率一页速览',     60, 999, 1, 1, 1, 3),
+(4,  4, '408 数据结构核心考点梳理',         '线性表 → 树 → 图 → 排序查找',    80, 999, 1, 1, 1, 4),
+(5,  1, '近代史纲时间线速记（1840—1949）',  '按时间轴串起重大事件',           50, 999, 1, 1, 2, 5),
+(6,  2, '英语大小作文模板（含高分句式）',     '小作文 7 类 + 大作文三段式',     50, 999, 1, 1, 2, 6),
+(7,  3, '概率论核心结论与常见分布',         '7 大分布期望方差 + 题型套路',     60, 999, 1, 1, 2, 7),
+(8,  4, '操作系统高频考点：进程与内存',      '调度 / 死锁 / 页面置换算法',     80, 999, 1, 1, 2, 8),
+(9,  1, '马原哲学易错 50 点辨析',           '专治选择题「差一个字」',         50, 999, 1, 1, 3, 9),
+(10, 2, '考研英语阅读长难句拆解 20 例',      '找主干 / 拆从句 / 剥修饰',       50, 999, 1, 1, 3, 10);
+
+-- 资料文章正文（与上面 10 个资料商品一一对应，见 db/article_seed.sql）
+-- 注：正文较长，单独维护在 article_seed.sql，避免 init.sql 过度膨胀；
+--     全新环境执行顺序：init.sql → article_seed.sql（或直接跑 article_migration.sql）
 
 -- ------------------------------------------------------------
 -- 10. favorite 收藏表（题目收藏，「我的收藏」）
@@ -659,11 +697,30 @@ CREATE TABLE `friend_request` (
     KEY `idx_to_status` (`to_user_id`, `status`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友请求表';
 
+-- ------------------------------------------------------------
+-- 14. message 好友私信消息表（一对一聊天，仿微信）
+--     单行单方向：我发给好友一行、好友发给我一行
+--     会话查询用 A→B / B→A 两方向 UNION，靠下面两条复合索引走索引
+--     is_read：只有收件人能置已读（进会话页时把对方发来的未读批量置 1）
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `message`;
+CREATE TABLE `message` (
+    `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+    `from_user_id` BIGINT UNSIGNED NOT NULL                COMMENT '发送者用户ID',
+    `to_user_id`   BIGINT UNSIGNED NOT NULL                COMMENT '接收者用户ID',
+    `content`      VARCHAR(500)    NOT NULL                COMMENT '消息正文（纯文本）',
+    `is_read`      TINYINT         NOT NULL DEFAULT 0      COMMENT '是否已读：0未读 1已读',
+    `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_from_to` (`from_user_id`, `to_user_id`, `id`),
+    KEY `idx_to_from` (`to_user_id`, `from_user_id`, `id`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '好友私信消息表';
+
 -- ============================================================
 -- 初始化完成
 -- 分类: 16 个（3 个一级 / 5 个二级分组或直挂 / 8 个叶子）
 -- 题目: 100 道（政治11 英语一11 英语二8 数学一11 数学二8 408:11 四级8 二级8 三级8 初级会计8 银行从业8）
--- 商城: 4 个分类 / 10 个商品；user.points 初始 0
--- 好友: friend / friend_request 两表初始为空
+-- 学习资料: 4 个资料分类 / 10 篇资料（article 正文见 article_seed.sql）
+-- 好友: friend / friend_request / message 三表初始为空
 -- 用户、答题记录、错题本、收藏、打卡表初始为空，由小程序运行后产生。
 -- ============================================================

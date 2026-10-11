@@ -3,7 +3,8 @@
 <mapper namespace="com.example.just5minbackend.mapper.MallProductMapper">
 
     <sql id="columns">
-        id, category_id, name, description, cover_url, price, stock, product_type, status, sort, created_at, updated_at
+        id, category_id, name, description, cover_url, article_id, price, stock, product_type, status, sort,
+        created_at, updated_at
     </sql>
 
     <select id="listEnabled" resultType="MallProduct">

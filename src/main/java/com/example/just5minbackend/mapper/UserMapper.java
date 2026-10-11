@@ -3,6 +3,7 @@ package com.example.just5minbackend.mapper;
 import com.example.just5minbackend.entity.User;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -33,11 +34,23 @@ public interface UserMapper {
 
     /**
      * 编辑资料：动态更新，只改非 null 字段。
-     * 调用方必须保证 nickname / avatarUrl 至少一个非 null。
+     *
+     * <p>调用方必须保证至少有一个字段需要更新（否则 SET 为空会生成非法 SQL）。
+     * 文本字段（昵称/签名/地区/院校/专业）传空串表示<b>清空</b>，传 null 表示<b>不动</b>；
+     * {@code birthday} / {@code examYear} 用 {@code clearXxx} 开关显式表达清空。</p>
      */
     int updateProfile(@Param("userId") Long userId,
                       @Param("nickname") String nickname,
-                      @Param("avatarUrl") String avatarUrl);
+                      @Param("avatarUrl") String avatarUrl,
+                      @Param("signature") String signature,
+                      @Param("gender") Integer gender,
+                      @Param("region") String region,
+                      @Param("targetSchool") String targetSchool,
+                      @Param("targetMajor") String targetMajor,
+                      @Param("birthday") LocalDate birthday,
+                      @Param("clearBirthday") boolean clearBirthday,
+                      @Param("examYear") Integer examYear,
+                      @Param("clearExamYear") boolean clearExamYear);
 
     /** 加积分（答题结算），返回影响行数 */
     int addPoints(@Param("userId") Long userId, @Param("delta") int delta);

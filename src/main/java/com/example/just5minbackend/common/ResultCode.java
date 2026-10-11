@@ -23,7 +23,10 @@ public enum ResultCode {
     ALREADY_FRIENDS(1007, "你们已经是好友了"),
     FRIEND_REQUEST_HANDLED(1008, "好友请求不存在或已处理"),
     FRIEND_REQUEST_SENT(1009, "已发送过好友请求，请等待对方处理"),
-    AVATAR_TOO_LARGE(1010, "头像图片过大，请重新选择");
+    AVATAR_TOO_LARGE(1010, "头像图片过大，请重新选择"),
+    ARTICLE_NOT_FOUND(1011, "资料不存在或已下架"),
+    NOT_FRIEND(1012, "只能给好友发消息"),
+    CANNOT_MESSAGE_SELF(1013, "不能给自己发消息");
 
     private final int code;
     private final String message;

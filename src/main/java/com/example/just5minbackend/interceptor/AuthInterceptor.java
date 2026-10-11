@@ -31,6 +31,7 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final List<String> GUEST_READABLE_PREFIXES = List.of(
             "/api/categories",
             "/api/questions",
+            "/api/articles",
             "/api/mall/categories",
             "/api/mall/products"
     );

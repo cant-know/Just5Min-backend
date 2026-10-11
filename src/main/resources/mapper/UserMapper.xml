@@ -6,15 +6,18 @@
       列拆分说明（重要）：
       avatar_url 现为 MEDIUMTEXT 且存 Base64 DataURL（约 5~10KB），绝不能出现在高频路径里。
       - baseColumns  ：不含头像。selectById 使用（答题提交 / 兑换 / 打卡 / 统计都是热路径，只读 points）
-      - authColumns  ：含头像。登录查询与「我的资料」使用（低频，且登录后前端要缓存头像）
+      - authColumns  ：含头像 + 资料字段。登录查询与「我的资料」使用（低频，且登录后前端要缓存头像）
       - briefColumns ：列表展示用最小字段集合（好友列表 / 用户搜索）
+      资料字段（signature/gender/... ）都是小字段，跟随 authColumns；
+      briefColumns 刻意不含它们 —— 好友列表/搜索不需要，别把响应体撑大。
     -->
     <sql id="baseColumns">
         id, openid, unionid, phone, password_hash, nickname, status, points, created_at, updated_at
     </sql>
 
     <sql id="authColumns">
-        <include refid="baseColumns"/>, avatar_url
+        <include refid="baseColumns"/>,
+        avatar_url, signature, gender, birthday, region, target_school, target_major, exam_year
     </sql>
 
     <sql id="briefColumns">
@@ -74,13 +77,28 @@
         VALUES (#{openid}, #{unionid}, #{phone}, #{passwordHash}, #{nickname}, #{avatarUrl}, 1)
     </insert>
 
-    <!-- 编辑资料：动态 SET，只更新传入的非 null 字段（支持只改昵称或只改头像）
-         注意：调用方必须保证至少一个字段非 null，否则 SET 为空会生成非法 SQL -->
+    <!--
+      编辑资料：动态 SET，只更新传入的非 null 字段（支持只改某一个字段）。
+      注意：调用方必须保证至少一个字段非 null，否则 SET 为空会生成非法 SQL。
+      「清空某个文本字段」约定：Service 层把要清空的文本转成空串 "" 传进来（不是 null），
+      这里对文本字段统一用 `!= null` 判断，空串会照常写库，从而与「没改」区分开。
+      birthday / exam_year 这类可清空的非文本字段用 clearBirthday / clearExamYear 两个
+      语义开关来区分「没传」与「显式清空」。
+    -->
     <update id="updateProfile">
         UPDATE `user`
         <set>
             <if test="nickname != null">nickname = #{nickname},</if>
             <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
+            <if test="signature != null">signature = #{signature},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="region != null">region = #{region},</if>
+            <if test="targetSchool != null">target_school = #{targetSchool},</if>
+            <if test="targetMajor != null">target_major = #{targetMajor},</if>
+            <if test="birthday != null">birthday = #{birthday},</if>
+            <if test="clearBirthday">birthday = NULL,</if>
+            <if test="examYear != null">exam_year = #{examYear},</if>
+            <if test="clearExamYear">exam_year = NULL,</if>
         </set>
         WHERE id = #{userId}
     </update>

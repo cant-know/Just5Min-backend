@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.just5minbackend.mapper.MessageMapper">
+
+    <!--
+      插入一条消息。insert 后立刻回查一次，把数据库侧生成的 created_at 带回来 ——
+      否则接口返回的 createdAt=null，前端刚发出的气泡就少了时间分隔（要等刷新才有）。
+      回查走主键，代价可忽略；不用 NOW() 是因为它可能与库的 DATETIME 精度/时区不一致。
+    -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO message (from_user_id, to_user_id, content, is_read)
+        VALUES (#{fromUserId}, #{toUserId}, #{content}, 0)
+    </insert>
+
+    <select id="selectById" resultType="Message">
+        SELECT id, from_user_id, to_user_id, content, is_read, created_at
+        FROM message
+        WHERE id = #{id}
+    </select>
+
+    <!--
+      会话历史（两方向各取 limit 条，再合并倒序取 limit）。
+      【为什么不用 OR】`WHERE (from=a AND to=b) OR (from=b AND to=a)` 只能命中一条索引，
+      另一半要走 filter，且排序需要回表；拆成两个子查询各自走自己的复合索引倒序扫，
+      代价是 O(2 * limit) 行，与聊天记录总量无关。
+      子查询里的 `LIMIT #{limit}` 必须加 —— 否则 MySQL 会把两个方向的历史全捞出来再排序。
+    -->
+    <select id="listHistory" resultType="Message">
+        SELECT t.id, t.from_user_id, t.to_user_id, t.content, t.is_read, t.created_at
+        FROM (
+            (SELECT id, from_user_id, to_user_id, content, is_read, created_at
+             FROM message
+             WHERE from_user_id = #{userId}
+               AND to_user_id = #{friendId}
+             <if test="beforeId != null">
+               AND id &lt; #{beforeId}
+             </if>
+             ORDER BY id DESC
+             LIMIT #{limit})
+            UNION ALL
+            (SELECT id, from_user_id, to_user_id, content, is_read, created_at
+             FROM message
+             WHERE from_user_id = #{friendId}
+               AND to_user_id = #{userId}
+             <if test="beforeId != null">
+               AND id &lt; #{beforeId}
+             </if>
+             ORDER BY id DESC
+             LIMIT #{limit})
+        ) t
+        ORDER BY t.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 条件里带 to_user_id = 我：只有收件人能把自己的未读置已读，天然防越权 -->
+    <update id="markRead">
+        UPDATE message
+        SET is_read = 1
+        WHERE to_user_id = #{userId}
+          AND from_user_id = #{friendId}
+          AND is_read = 0
+    </update>
+
+    <select id="countWith" resultType="long">
+        SELECT COUNT(*)
+        FROM message
+        WHERE (from_user_id = #{userId} AND to_user_id = #{friendId})
+           OR (from_user_id = #{friendId} AND to_user_id = #{userId})
+    </select>
+
+    <!--
+      会话列表：每个「会话对」取 id 最大的一条消息。
+      会话键用 LEAST/GREATEST 拼接，保证 A→B 与 B→A 落在同一组。
+      ⚠️ 需要 MySQL 8.0+ 的窗口函数（本机为 8.x）。
+    -->
+    <select id="listSessions" resultType="com.example.just5minbackend.vo.ChatSessionVO">
+        SELECT s.peer_id            AS userId,
+               s.last_content       AS lastContent,
+               s.last_mine          AS lastMine,
+               s.last_time          AS lastTime
+        FROM (SELECT id,
+                     CASE WHEN from_user_id = #{userId} THEN to_user_id ELSE from_user_id END AS peer_id,
+                     content                                                                 AS last_content,
+                     (from_user_id = #{userId})                                              AS last_mine,
+                     created_at                                                              AS last_time,
+                     ROW_NUMBER() OVER (
+                         PARTITION BY LEAST(from_user_id, to_user_id), GREATEST(from_user_id, to_user_id)
+                         ORDER BY id DESC
+                         )                                                                   AS rn
+              FROM message
+              WHERE from_user_id = #{userId}
+                 OR to_user_id = #{userId}) s
+        WHERE s.rn = 1
+        ORDER BY s.last_time DESC, s.id DESC
+    </select>
+
+    <select id="countUnreadByFriend" resultType="com.example.just5minbackend.vo.ChatSessionVO">
+        SELECT from_user_id AS userId,
+               COUNT(*)     AS unreadCount
+        FROM message
+        WHERE to_user_id = #{userId}
+          AND is_read = 0
+        GROUP BY from_user_id
+    </select>
+
+    <select id="listChattedIds" resultType="long">
+        SELECT DISTINCT peer_id
+        FROM (SELECT CASE WHEN from_user_id = #{userId} THEN to_user_id ELSE from_user_id END AS peer_id
+              FROM message
+              WHERE from_user_id = #{userId}
+                 OR to_user_id = #{userId}) t
+        WHERE t.peer_id IN
+        <foreach collection="ids" item="fid" open="(" separator="," close=")">
+            #{fid}
+        </foreach>
+    </select>
+
+</mapper>

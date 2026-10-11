@@ -11,4 +11,7 @@ public interface ExchangeRecordMapper {
 
     /** 某用户的兑换记录，按兑换时间倒序 */
     List<ExchangeRecord> listByUser(@Param("userId") Long userId);
+
+    /** 查某用户对某商品的最近一条领取记录（免费资料幂等用） */
+    ExchangeRecord selectByUserAndProduct(@Param("userId") Long userId, @Param("productId") Long productId);
 }

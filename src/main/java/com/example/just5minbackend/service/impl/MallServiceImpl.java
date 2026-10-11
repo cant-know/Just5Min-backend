@@ -47,48 +47,73 @@ public class MallServiceImpl implements MallService {
     }
 
     /**
-     * 兑换：先原子扣库存、再原子扣积分，任一失败抛业务异常并整体回滚。
-     * 防超兑/透支只靠条件 UPDATE 的影响行数判断，不做"先查后扣"。
+     * 领取/解锁学习资料。
+     * <p>规则：</p>
+     * <ul>
+     *   <li><b>免费资料（price = 0）</b>：不扣积分、不扣库存，幂等——已领过直接返回原记录；</li>
+     *   <li><b>付费商品（price &gt; 0）</b>：先原子扣库存、再原子扣积分，任一失败整体回滚，
+     *       防止超兑/透支（只靠条件 UPDATE 的影响行数判断，不做「先查后扣」）。</li>
+     * </ul>
      */
     @Override
     @Transactional
     public ExchangeResultVO exchange(Long userId, Long productId) {
         MallProduct product = mallProductMapper.selectById(productId);
         if (product == null || product.getStatus() == null || product.getStatus() != 1) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "商品不存在或已下架");
+            throw new BusinessException(ResultCode.NOT_FOUND, "资料不存在或已下架");
+        }
+
+        int price = product.getPrice() == null ? 0 : product.getPrice();
+        int balance = readPoints(userId);
+
+        // 免费资料：直接复用已有领取记录（幂等），不产生积分流水
+        if (price <= 0) {
+            ExchangeRecord existed = exchangeRecordMapper.selectByUserAndProduct(userId, productId);
+            if (existed != null) {
+                return new ExchangeResultVO(existed.getId(), product.getId(), product.getName(),
+                        product.getArticleId(), 0, balance);
+            }
+            ExchangeRecord free = insertRecord(userId, product, 0);
+            return new ExchangeResultVO(free.getId(), product.getId(), product.getName(),
+                    product.getArticleId(), 0, balance);
         }
 
         // 1) 原子扣库存（stock > 0 才成功）
         if (mallProductMapper.deductStock(productId) == 0) {
-            throw new BusinessException(ResultCode.STOCK_NOT_ENOUGH, "手慢了，商品已被兑完");
+            throw new BusinessException(ResultCode.STOCK_NOT_ENOUGH, "手慢了，资料已被领完");
         }
 
         // 2) 原子扣积分（points >= price 才成功；失败则上面的扣库存一并回滚）
-        if (userMapper.deductPoints(userId, product.getPrice()) == 0) {
+        if (userMapper.deductPoints(userId, price) == 0) {
             throw new BusinessException(ResultCode.POINTS_NOT_ENOUGH, "积分不足，去刷几道题再来看看吧");
         }
 
         // 3) 兑换记录（名称/积分均为快照）
-        ExchangeRecord record = new ExchangeRecord();
-        record.setUserId(userId);
-        record.setProductId(product.getId());
-        record.setProductName(product.getName());
-        record.setPointsCost(product.getPrice());
-        exchangeRecordMapper.insert(record);
+        ExchangeRecord record = insertRecord(userId, product, price);
 
         // 4) 积分流水（事务内可读到刚扣减后的余额）
-        int balance = readPoints(userId);
+        int newBalance = readPoints(userId);
         PointsLog log = new PointsLog();
         log.setUserId(userId);
-        log.setChangeAmount(-product.getPrice());
-        log.setBalance(balance);
+        log.setChangeAmount(-price);
+        log.setBalance(newBalance);
         log.setSource(2);
         log.setRefId(record.getId());
         log.setRemark("兑换：" + product.getName());
         pointsLogMapper.insert(log);
 
         return new ExchangeResultVO(record.getId(), product.getId(), product.getName(),
-                product.getPrice(), balance);
+                product.getArticleId(), price, newBalance);
+    }
+
+    private ExchangeRecord insertRecord(Long userId, MallProduct product, int pointsCost) {
+        ExchangeRecord record = new ExchangeRecord();
+        record.setUserId(userId);
+        record.setProductId(product.getId());
+        record.setProductName(product.getName());
+        record.setPointsCost(pointsCost);
+        exchangeRecordMapper.insert(record);
+        return record;
     }
 
     @Override
@@ -114,6 +139,7 @@ public class MallServiceImpl implements MallService {
         vo.setName(p.getName());
         vo.setDescription(p.getDescription());
         vo.setCoverUrl(p.getCoverUrl());
+        vo.setArticleId(p.getArticleId());
         vo.setPrice(p.getPrice());
         vo.setStock(p.getStock());
         vo.setProductType(p.getProductType());

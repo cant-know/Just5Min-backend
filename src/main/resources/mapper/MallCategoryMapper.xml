@@ -13,4 +13,10 @@
         ORDER BY sort ASC, id ASC
     </select>
 
+    <select id="selectById" resultType="MallCategory">
+        SELECT <include refid="columns"/>
+        FROM mall_category
+        WHERE id = #{id}
+    </select>
+
 </mapper>

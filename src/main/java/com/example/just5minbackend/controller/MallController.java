@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 积分商城：分类/商品游客可读，兑换与兑换记录需登录。
+ * 学习资料（原积分商城）：分类/资料列表游客可读，领取与领取记录需登录。
  */
 @RestController
 @RequestMapping("/api/mall")
@@ -29,26 +29,26 @@ public class MallController {
 
     private final MallService mallService;
 
-    /** 商城一级分类（游客可读） */
+    /** 资料分类（游客可读） */
     @GetMapping("/categories")
     public Result<List<MallCategoryVO>> categories() {
         return Result.success(mallService.listCategories());
     }
 
-    /** 商品列表，categoryId 可选（游客可读） */
+    /** 资料列表，categoryId 可选（游客可读） */
     @GetMapping("/products")
     public Result<List<MallProductVO>> products(
             @RequestParam(value = "categoryId", required = false) Long categoryId) {
         return Result.success(mallService.listProducts(categoryId));
     }
 
-    /** 兑换商品（需登录） */
+    /** 领取资料（需登录）：免费资料不扣积分且幂等；付费商品扣库存扣积分 */
     @PostMapping("/exchange")
     public Result<ExchangeResultVO> exchange(@Valid @RequestBody ExchangeProductDTO dto) {
         return Result.success(mallService.exchange(UserContext.require(), dto.getProductId()));
     }
 
-    /** 我的兑换记录（需登录） */
+    /** 我的领取记录（需登录） */
     @GetMapping("/exchanges")
     public Result<List<ExchangeRecordVO>> exchanges() {
         return Result.success(mallService.listExchanges(UserContext.require()));
