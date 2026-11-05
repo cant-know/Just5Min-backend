@@ -35,4 +35,7 @@ public class FriendVO {
 
     /** 成为好友时间 */
     private LocalDateTime friendSince;
+
+    /** 对方佩戴的装扮（头像框/气泡/挂件；未佩戴的槽位为 null） */
+    private DecorationVO decoration;
 }

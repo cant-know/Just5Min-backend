@@ -10,18 +10,24 @@
       - briefColumns ：列表展示用最小字段集合（好友列表 / 用户搜索）
       资料字段（signature/gender/... ）都是小字段，跟随 authColumns；
       briefColumns 刻意不含它们 —— 好友列表/搜索不需要，别把响应体撑大。
+      佩戴槽位（avatar_frame_id/chat_bubble_id/pendant_id）是 3 个 BIGINT（几乎零开销），
+      baseColumns/authColumns/briefColumns 三段都带上：
+      装扮查询（GET /api/user/decoration）与兑换后 isEquipped 走 selectById（baseColumns），
+      好友列表批量下发对方装扮走 selectBriefByIds（briefColumns），资料页走 authColumns，缺一不可。
     -->
     <sql id="baseColumns">
-        id, openid, unionid, phone, password_hash, nickname, status, points, created_at, updated_at
+        id, openid, unionid, phone, password_hash, nickname, status, points,
+        avatar_frame_id, chat_bubble_id, pendant_id, created_at, updated_at
     </sql>
 
     <sql id="authColumns">
         <include refid="baseColumns"/>,
-        avatar_url, signature, gender, birthday, region, target_school, target_major, exam_year
+        avatar_url, signature, gender, birthday, region, target_school, target_major, exam_year,
+        avatar_frame_id, chat_bubble_id, pendant_id
     </sql>
 
     <sql id="briefColumns">
-        id, nickname, avatar_url, status, points
+        id, nickname, avatar_url, status, points, avatar_frame_id, chat_bubble_id, pendant_id
     </sql>
 
     <select id="selectByOpenid" resultType="User">
@@ -115,6 +121,23 @@
         UPDATE `user`
         SET points = points - #{amount}
         WHERE id = #{userId} AND points &gt;= #{amount}
+    </update>
+
+    <!--
+      佩戴装扮的 3 个槽位更新（独立语句而非动态列名，避免 SQL 注入）。
+      ⚠️ jdbcType=BIGINT 必须写：摘下时 productId 传 null，
+      不写 jdbcType 时 MyBatis 对 null 参数默认 JdbcType OTHER，部分驱动会直接抛异常。
+    -->
+    <update id="updateAvatarFrame">
+        UPDATE `user` SET avatar_frame_id = #{productId, jdbcType=BIGINT} WHERE id = #{userId}
+    </update>
+
+    <update id="updateChatBubble">
+        UPDATE `user` SET chat_bubble_id = #{productId, jdbcType=BIGINT} WHERE id = #{userId}
+    </update>
+
+    <update id="updatePendant">
+        UPDATE `user` SET pendant_id = #{productId, jdbcType=BIGINT} WHERE id = #{userId}
     </update>
 
 </mapper>

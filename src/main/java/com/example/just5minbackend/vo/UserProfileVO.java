@@ -48,4 +48,7 @@ public class UserProfileVO {
 
     /** 积分余额 */
     private Integer points;
+
+    /** 当前佩戴的装扮（头像框/气泡/挂件），可能含 null 槽位 */
+    private DecorationVO decoration;
 }

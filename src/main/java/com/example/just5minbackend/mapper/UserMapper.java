@@ -57,4 +57,13 @@ public interface UserMapper {
 
     /** 条件扣积分：points >= amount 才扣，返回影响行数（0 = 积分不足） */
     int deductPoints(@Param("userId") Long userId, @Param("amount") int amount);
+
+    /** 佩戴/摘下头像框（productId 传 null = 摘下） */
+    int updateAvatarFrame(@Param("userId") Long userId, @Param("productId") Long productId);
+
+    /** 佩戴/摘下聊天气泡（productId 传 null = 摘下） */
+    int updateChatBubble(@Param("userId") Long userId, @Param("productId") Long productId);
+
+    /** 佩戴/摘下主页挂件（productId 传 null = 摘下） */
+    int updatePendant(@Param("userId") Long userId, @Param("productId") Long productId);
 }

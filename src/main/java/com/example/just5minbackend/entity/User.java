@@ -51,6 +51,16 @@ public class User {
 
     /** 积分余额：每提交一次答案 +1，兑换商品扣减 */
     private Integer points;
+
+    /** 佩戴中的头像框商品ID（mall_product.id，NULL=未佩戴） */
+    private Long avatarFrameId;
+
+    /** 佩戴中的聊天气泡商品ID（NULL=未佩戴） */
+    private Long chatBubbleId;
+
+    /** 佩戴中的主页挂件商品ID（NULL=未佩戴） */
+    private Long pendantId;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

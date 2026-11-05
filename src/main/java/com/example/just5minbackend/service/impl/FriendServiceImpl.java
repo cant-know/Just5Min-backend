@@ -10,10 +10,12 @@ import com.example.just5minbackend.mapper.CheckInMapper;
 import com.example.just5minbackend.mapper.FriendMapper;
 import com.example.just5minbackend.mapper.FriendRequestMapper;
 import com.example.just5minbackend.mapper.UserMapper;
+import com.example.just5minbackend.service.DecorationService;
 import com.example.just5minbackend.service.FriendService;
 import com.example.just5minbackend.vo.FriendRequestVO;
 import com.example.just5minbackend.vo.FriendSearchVO;
 import com.example.just5minbackend.vo.FriendVO;
+import com.example.just5minbackend.vo.DecorationVO;
 import com.example.just5minbackend.vo.UserAnswerStatVO;
 import com.example.just5minbackend.vo.UserCheckInStatVO;
 import lombok.RequiredArgsConstructor;
@@ -60,6 +62,7 @@ public class FriendServiceImpl implements FriendService {
     private final UserMapper userMapper;
     private final AnswerRecordMapper answerRecordMapper;
     private final CheckInMapper checkInMapper;
+    private final DecorationService decorationService;
 
     // ------------------------------------------------------------------ 列表
 
@@ -92,6 +95,9 @@ public class FriendServiceImpl implements FriendService {
         Map<Long, UserCheckInStatVO> checkinMap = checkInMapper.countByUsers(ids).stream()
                 .collect(Collectors.toMap(UserCheckInStatVO::getUserId, Function.identity(), (a, b) -> a));
 
+        // 批量组装佩戴装扮（selectBriefByIds 已带 3 个槽位列，商品资源再批量回查一次）
+        Map<Long, DecorationVO> decorationMap = decorationService.batch(userMap.values());
+
         List<FriendVO> result = new ArrayList<>(relations.size());
         for (Friend relation : relations) {
             Long fid = relation.getFriendId();
@@ -116,6 +122,7 @@ public class FriendServiceImpl implements FriendService {
             vo.setCheckinDays(days);
             vo.setPoints(user == null || user.getPoints() == null ? 0 : user.getPoints());
             vo.setFriendSince(relation.getCreatedAt());
+            vo.setDecoration(decorationMap.get(fid));
             result.add(vo);
         }
         return result;

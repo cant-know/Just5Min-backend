@@ -13,6 +13,9 @@ public class MallCategory {
     private Long id;
     private String name;
 
+    /** 业务类型：1资料文章（文章专栏复用） 2装扮商城 */
+    private Integer bizType;
+
     /** 图标URL（预留） */
     private String icon;
     private Integer sort;

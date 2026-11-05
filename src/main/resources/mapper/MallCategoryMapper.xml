@@ -3,13 +3,20 @@
 <mapper namespace="com.example.just5minbackend.mapper.MallCategoryMapper">
 
     <sql id="columns">
-        id, name, icon, sort, status, created_at, updated_at
+        id, name, biz_type, icon, sort, status, created_at, updated_at
     </sql>
 
     <select id="listAllEnabled" resultType="MallCategory">
         SELECT <include refid="columns"/>
         FROM mall_category
         WHERE status = 1
+        ORDER BY sort ASC, id ASC
+    </select>
+
+    <select id="listEnabledByBizType" resultType="MallCategory">
+        SELECT <include refid="columns"/>
+        FROM mall_category
+        WHERE status = 1 AND biz_type = #{bizType}
         ORDER BY sort ASC, id ASC
     </select>
 

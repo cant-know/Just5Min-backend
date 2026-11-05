@@ -3,8 +3,8 @@
 <mapper namespace="com.example.just5minbackend.mapper.MallProductMapper">
 
     <sql id="columns">
-        id, category_id, name, description, cover_url, article_id, price, stock, product_type, status, sort,
-        created_at, updated_at
+        id, category_id, name, description, cover_url, article_id, price, stock, product_type,
+        decoration_kind, decoration_asset, status, sort, created_at, updated_at
     </sql>
 
     <select id="listEnabled" resultType="MallProduct">
@@ -21,6 +21,16 @@
         SELECT <include refid="columns"/>
         FROM mall_product
         WHERE id = #{id}
+    </select>
+
+    <!-- 批量按 id 查（好友列表下发装扮用）；调用方保证 ids 非空 -->
+    <select id="listByIds" resultType="MallProduct">
+        SELECT <include refid="columns"/>
+        FROM mall_product
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </select>
 
     <!-- 条件扣库存：stock > 0 才扣，防超兑；返回影响行数（0 = 库存不足） -->

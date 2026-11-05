@@ -5,6 +5,7 @@ import com.example.just5minbackend.common.ResultCode;
 import com.example.just5minbackend.dto.UpdateProfileDTO;
 import com.example.just5minbackend.entity.User;
 import com.example.just5minbackend.mapper.UserMapper;
+import com.example.just5minbackend.service.DecorationService;
 import com.example.just5minbackend.service.UserProfileService;
 import com.example.just5minbackend.vo.UserProfileVO;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private static final int MAX_EXAM_YEAR = 2100;
 
     private final UserMapper userMapper;
+    private final DecorationService decorationService;
 
     @Override
     public UserProfileVO get(Long userId) {
@@ -217,7 +219,8 @@ public class UserProfileServiceImpl implements UserProfileService {
                 blankToNull(user.getTargetSchool()),
                 blankToNull(user.getTargetMajor()),
                 user.getExamYear(),
-                user.getPoints() == null ? 0 : user.getPoints()
+                user.getPoints() == null ? 0 : user.getPoints(),
+                decorationService.of(user)
         );
     }
 

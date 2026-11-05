@@ -5,6 +5,7 @@
 --      article / mall_category / mall_product / exchange_record / points_log（学习资料）
 --      friend / friend_request（好友关系与请求）
 --      message（好友私信聊天）
+-- 商城: 12 件虚拟装扮（头像框/聊天气泡/主页挂件，佩戴生效）；资料文章走文章专栏免费阅读
 -- 分类: 三级结构（一级 → 二级分组/直挂叶子 → 三级叶子），靠 parent_id 自引用
 -- 题型: 目前为选择题(单选+多选)，question_type 已为判断/填空/简答预留
 -- 执行: mysql -uroot -p < init.sql
@@ -43,6 +44,9 @@ CREATE TABLE `user` (
     `exam_year`     SMALLINT        DEFAULT NULL            COMMENT '考研年份（如 2027）',
     `status`        TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1正常 0禁用',
     `points`        INT             NOT NULL DEFAULT 0      COMMENT '积分余额（每提交一次答案+1，兑换商品扣减）',
+    `avatar_frame_id` BIGINT UNSIGNED DEFAULT NULL        COMMENT '佩戴中的头像框商品ID（mall_product.id，NULL=未佩戴）',
+    `chat_bubble_id`  BIGINT UNSIGNED DEFAULT NULL        COMMENT '佩戴中的聊天气泡商品ID（NULL=未佩戴）',
+    `pendant_id`      BIGINT UNSIGNED DEFAULT NULL        COMMENT '佩戴中的主页挂件商品ID（NULL=未佩戴）',
     `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
     `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
@@ -535,12 +539,14 @@ CREATE TABLE `article` (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '学习资料文章表';
 
 -- ------------------------------------------------------------
--- 7. mall_category 资料分类表（仅一级，不做多级）
+-- 7. mall_category 商城分类表（仅一级，不做多级）
+--    biz_type: 1资料文章（文章专栏复用） 2装扮商城（头像框/气泡/挂件）
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `mall_category`;
 CREATE TABLE `mall_category` (
-    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '资料分类ID',
-    `name`       VARCHAR(64)     NOT NULL                COMMENT '分类名称，如：政治资料/英语资料',
+    `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商城分类ID',
+    `name`       VARCHAR(64)     NOT NULL                COMMENT '分类名称，如：政治资料/头像框',
+    `biz_type`   TINYINT         NOT NULL DEFAULT 1      COMMENT '业务类型：1资料文章 2装扮商城',
     `icon`       VARCHAR(512)    DEFAULT NULL            COMMENT '图标URL（预留）',
     `sort`       INT             NOT NULL DEFAULT 0      COMMENT '排序值，越小越靠前',
     `status`     TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1启用 0停用',
@@ -548,34 +554,39 @@ CREATE TABLE `mall_category` (
     `updated_at` DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     KEY `idx_sort` (`sort`, `id`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '资料分类表';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '商城分类表';
 
 -- ------------------------------------------------------------
--- 8. mall_product 资料商品表
---    article_id 关联文章（虚拟资料商品用）；price 为解锁所需积分
+-- 8. mall_product 商城商品表
+--    资料商品：article_id 指向文章、decoration_kind 为 NULL
+--    装扮商品：decoration_kind 1头像框/2聊天气泡/3主页挂件，
+--              decoration_asset 为透明PNG路径（框/挂件）或气泡主题key
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `mall_product`;
 CREATE TABLE `mall_product` (
-    `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商品ID',
-    `category_id`  BIGINT UNSIGNED NOT NULL                COMMENT '资料分类ID',
-    `name`         VARCHAR(128)    NOT NULL                COMMENT '商品名称（与文章标题一致）',
-    `description`  VARCHAR(512)    DEFAULT NULL            COMMENT '商品简介',
-    `cover_url`    VARCHAR(512)    DEFAULT NULL            COMMENT '封面图URL（预留）',
-    `article_id`   BIGINT UNSIGNED DEFAULT NULL            COMMENT '关联文章ID（虚拟资料商品用；实物为空）',
-    `price`        INT             NOT NULL                COMMENT '解锁所需积分',
-    `stock`        INT             NOT NULL DEFAULT 0      COMMENT '库存（虚拟资料同样占库存）',
-    `product_type` TINYINT         NOT NULL DEFAULT 1      COMMENT '类型：1虚拟电子资料（预留2实物）',
-    `status`       TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1上架 0下架',
-    `sort`         INT             NOT NULL DEFAULT 0      COMMENT '排序值，越小越靠前',
-    `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商品ID',
+    `category_id`      BIGINT UNSIGNED NOT NULL                COMMENT '商城分类ID',
+    `name`             VARCHAR(128)    NOT NULL                COMMENT '商品名称',
+    `description`      VARCHAR(512)    DEFAULT NULL            COMMENT '商品简介',
+    `cover_url`        VARCHAR(512)    DEFAULT NULL            COMMENT '封面图URL（装扮商品为包内 /static/goods/*.png）',
+    `article_id`       BIGINT UNSIGNED DEFAULT NULL            COMMENT '关联文章ID（资料商品用；装扮为空）',
+    `price`            INT             NOT NULL                COMMENT '兑换所需积分',
+    `stock`            INT             NOT NULL DEFAULT 0      COMMENT '库存',
+    `product_type`     TINYINT         NOT NULL DEFAULT 1      COMMENT '类型：1虚拟电子商品（预留2实物）',
+    `decoration_kind`  TINYINT         DEFAULT NULL            COMMENT '装扮类型：1头像框 2聊天气泡 3主页挂件；NULL=非装扮',
+    `decoration_asset` VARCHAR(255)    DEFAULT NULL            COMMENT '装扮资源：头像框/挂件为透明PNG路径；气泡为主题key(lime/sakura/ocean/gold)',
+    `status`           TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1上架 0下架',
+    `sort`             INT             NOT NULL DEFAULT 0      COMMENT '排序值，越小越靠前',
+    `created_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
     KEY `idx_cat_status` (`category_id`, `status`, `sort`)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '资料商品表';
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '商城商品表';
 
 -- ------------------------------------------------------------
 -- 9. exchange_record 兑换记录表
 --    product_name / points_cost 为兑换时刻快照
+--    idx_user_product 供「是否已拥有」高频判断（详情页/佩戴校验/兑换幂等）
 -- ------------------------------------------------------------
 DROP TABLE IF EXISTS `exchange_record`;
 CREATE TABLE `exchange_record` (
@@ -587,7 +598,8 @@ CREATE TABLE `exchange_record` (
     `status`       TINYINT         NOT NULL DEFAULT 1      COMMENT '状态：1已兑换（预留2已发放 3已取消）',
     `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '兑换时间',
     PRIMARY KEY (`id`),
-    KEY `idx_user_time` (`user_id`, `created_at`)
+    KEY `idx_user_time` (`user_id`, `created_at`),
+    KEY `idx_user_product` (`user_id`, `product_id`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '兑换记录表';
 
 -- ------------------------------------------------------------
@@ -608,29 +620,37 @@ CREATE TABLE `points_log` (
     KEY `idx_user_time` (`user_id`, `created_at`)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '积分流水表';
 
--- 资料分类（4 个一级，id 固定）
-INSERT INTO `mall_category` (`id`, `name`, `sort`, `status`) VALUES
-(1, '政治资料', 1, 1),
-(2, '英语资料', 2, 1),
-(3, '数学资料', 3, 1),
-(4, '专业课资料', 4, 1);
+-- 商城分类：1~4 资料分类（文章专栏复用），5~7 装扮分类（biz_type=2）
+INSERT INTO `mall_category` (`id`, `name`, `biz_type`, `sort`, `status`) VALUES
+(1, '政治资料',   1, 1, 1),
+(2, '英语资料',   1, 2, 1),
+(3, '数学资料',   1, 3, 1),
+(4, '专业课资料', 1, 4, 1),
+(5, '头像框',     2, 1, 1),
+(6, '聊天气泡',   2, 2, 1),
+(7, '主页挂件',   2, 3, 1);
 
--- 资料商品（10 篇学习资料，按科目分档定价：政治/英语 50、数学 60、专业课 80 积分；
---          兑换成功后前端跳对应文章详情；文章本身在「文章专栏」里仍免费可读）
+-- 商城商品 = 12 件虚拟装扮（头像框/聊天气泡/主页挂件 各 4 件，价格梯度 0/30/50/100）
+-- 旧「考研资料」商品已在有数据环境通过 mall_decoration_migration.sql 软下架（status=0），
+-- 全新环境无需保留；文章本身仍通过首页「文章专栏」免费阅读，与商城解耦
+-- decoration_asset：头像框/挂件 = 包内透明 PNG；气泡 = 前端 CSS 主题 key
 INSERT INTO `mall_product`
-(`id`, `category_id`, `name`, `description`, `price`, `stock`, `product_type`, `status`, `sort`, `article_id`) VALUES
-(1,  1, '考研政治冲刺必背 100 题（上）',   '马原 + 毛中特高频考点精选',      50, 999, 1, 1, 1, 1),
-(2,  2, '考研英语高频词汇手册（核心 500 词）', '按真题词频排序，含熟词僻义',     50, 999, 1, 1, 1, 2),
-(3,  3, '考研数学公式速查卡',               '高数 / 线代 / 概率一页速览',     60, 999, 1, 1, 1, 3),
-(4,  4, '408 数据结构核心考点梳理',         '线性表 → 树 → 图 → 排序查找',    80, 999, 1, 1, 1, 4),
-(5,  1, '近代史纲时间线速记（1840—1949）',  '按时间轴串起重大事件',           50, 999, 1, 1, 2, 5),
-(6,  2, '英语大小作文模板（含高分句式）',     '小作文 7 类 + 大作文三段式',     50, 999, 1, 1, 2, 6),
-(7,  3, '概率论核心结论与常见分布',         '7 大分布期望方差 + 题型套路',     60, 999, 1, 1, 2, 7),
-(8,  4, '操作系统高频考点：进程与内存',      '调度 / 死锁 / 页面置换算法',     80, 999, 1, 1, 2, 8),
-(9,  1, '马原哲学易错 50 点辨析',           '专治选择题「差一个字」',         50, 999, 1, 1, 3, 9),
-(10, 2, '考研英语阅读长难句拆解 20 例',      '找主干 / 拆从句 / 剥修饰',       50, 999, 1, 1, 3, 10);
+(`id`, `category_id`, `name`, `description`, `cover_url`, `article_id`, `price`, `stock`,
+ `product_type`, `decoration_kind`, `decoration_asset`, `status`, `sort`) VALUES
+(11, 5, '简约光圈', '干净的白色描边光圈，低调百搭', '/static/goods/frame-minimal.png', NULL, 0, 9999, 1, 1, '/static/decoration/frame-minimal.png', 1, 1),
+(12, 5, '樱花边框', '粉色樱花环绕，春日气息拉满', '/static/goods/frame-sakura.png', NULL, 30, 9999, 1, 1, '/static/decoration/frame-sakura.png', 1, 2),
+(13, 5, '星河之环', '蓝紫星云光环，缀满点点星光', '/static/goods/frame-galaxy.png', NULL, 50, 9999, 1, 1, '/static/decoration/frame-galaxy.png', 1, 3),
+(14, 5, '鎏金皇冠', '厚金描边加皇冠，尊贵感十足', '/static/goods/frame-gold.png', NULL, 100, 9999, 1, 1, '/static/decoration/frame-gold.png', 1, 4),
+(15, 6, '青柠气泡', '清爽青柠渐变，聊天自带凉风', '/static/goods/bubble-lime.png', NULL, 0, 9999, 1, 2, 'lime', 1, 1),
+(16, 6, '樱花气泡', '樱花粉渐变，说话都变温柔', '/static/goods/bubble-sakura.png', NULL, 30, 9999, 1, 2, 'sakura', 1, 2),
+(17, 6, '海盐气泡', '海盐蓝渐变，像海风一样清新', '/static/goods/bubble-ocean.png', NULL, 50, 9999, 1, 2, 'ocean', 1, 3),
+(18, 6, '鎏金气泡', '暗金质感，一开口就是大佬', '/static/goods/bubble-gold.png', NULL, 100, 9999, 1, 2, 'gold', 1, 4),
+(19, 7, '学习小猫', '趴在头像边陪你学习的小猫', '/static/goods/pendant-cat.png', NULL, 0, 9999, 1, 3, '/static/decoration/pendant-cat.png', 1, 1),
+(20, 7, '上岸火箭', '一飞冲天的火箭，上岸好兆头', '/static/goods/pendant-rocket.png', NULL, 30, 9999, 1, 3, '/static/decoration/pendant-rocket.png', 1, 2),
+(21, 7, '学霸皇冠', '金光闪闪的小皇冠，学霸认证', '/static/goods/pendant-crown.png', NULL, 50, 9999, 1, 3, '/static/decoration/pendant-crown.png', 1, 3),
+(22, 7, '长明台灯', '深夜自习室的那盏灯', '/static/goods/pendant-lamp.png', NULL, 100, 9999, 1, 3, '/static/decoration/pendant-lamp.png', 1, 4);
 
--- 资料文章正文（与上面 10 个资料商品一一对应，见 db/article_seed.sql）
+-- 资料文章正文（10 篇学习资料，不再作为商品，仅首页「文章专栏」免费阅读）
 -- 注：正文较长，单独维护在 article_seed.sql，避免 init.sql 过度膨胀；
 --     全新环境执行顺序：init.sql → article_seed.sql（或直接跑 article_migration.sql）
 

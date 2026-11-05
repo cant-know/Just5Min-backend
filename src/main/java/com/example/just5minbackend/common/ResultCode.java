@@ -26,7 +26,9 @@ public enum ResultCode {
     AVATAR_TOO_LARGE(1010, "头像图片过大，请重新选择"),
     ARTICLE_NOT_FOUND(1011, "资料不存在或已下架"),
     NOT_FRIEND(1012, "只能给好友发消息"),
-    CANNOT_MESSAGE_SELF(1013, "不能给自己发消息");
+    CANNOT_MESSAGE_SELF(1013, "不能给自己发消息"),
+    DECORATION_NOT_OWNED(1014, "还没有获得这件装扮，请先兑换"),
+    DECORATION_TYPE_MISMATCH(1015, "装扮类型不匹配");
 
     private final int code;
     private final String message;
